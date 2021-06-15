@@ -7,42 +7,44 @@ import 'dart:typed_data';
 import 'package:flutter/widgets.dart';
 
 class VideoThumbnail {
-  VideoThumbnail({this.width, this.height, this.data});
+  VideoThumbnail({required this.width, required this.height, this.data});
 
-  int width;
-  int height;
-  Uint8List data;
+  final int width;
+  final int height;
+  final Uint8List? data;
 
-  VideoThumbnail.fromMap(Map m) {
-    width = m["width"];
-    height = m["height"];
-    data = m["data"] != null
-        ? m["data"] is String ? base64.decode(m["data"]) : m["data"]
-        : null;
-  }
+  VideoThumbnail.fromMap(Map m)
+      : this(
+            width: m["width"],
+            height: m["height"],
+            data: m["data"] != null
+                ? m["data"] is String
+                    ? base64.decode(m["data"])
+                    : m["data"]
+                : null);
 
   @override
   String toString() {
-    return "width:$width, height:$height, length=${data.length}";
+    return "width:$width, height:$height, length=${data?.length}";
   }
 
   Map<String, dynamic> toMap() {
     return {
       'width': width,
       'height': height,
-      'data': data != null ? base64.encode(data) : null,
+      'data': data != null ? base64.encode(data!) : null,
     };
   }
 }
 
-typedef onLatestThumbnailAvailable = Function(VideoThumbnail image);
+typedef OnLatestThumbnailAvailable = Function(VideoThumbnail image);
 
 /// This is thrown when the plugin reports an error.
 class VideoTrimException implements Exception {
-  VideoTrimException(this.code, this.description);
+  VideoTrimException(this.code, {this.description});
 
   String code;
-  String description;
+  String? description;
 
   @override
   String toString() => '$runtimeType($code, $description)';
@@ -51,7 +53,7 @@ class VideoTrimException implements Exception {
 /// The state of a [FetchVideoThumbnailnailTaskValue].
 class FetchVideoThumbnailnailTaskValue {
   const FetchVideoThumbnailnailTaskValue(
-      {this.thumbnail, this.errorDescription, this.isRunning});
+      {this.thumbnail, this.errorDescription, this.isRunning = false});
 
   const FetchVideoThumbnailnailTaskValue.uninitialized()
       : this(
@@ -60,18 +62,18 @@ class FetchVideoThumbnailnailTaskValue {
         );
 
   /// True when fetching thumbnails have isRunning.
-  final VideoThumbnail thumbnail;
+  final VideoThumbnail? thumbnail;
 
-  final String errorDescription;
+  final String? errorDescription;
 
   final bool isRunning;
 
   bool get hasError => errorDescription != null;
 
   FetchVideoThumbnailnailTaskValue copyWith({
-    VideoThumbnail thumbnail,
-    String errorDescription,
-    bool isRunning,
+    VideoThumbnail? thumbnail,
+    String? errorDescription,
+    bool? isRunning,
   }) {
     return FetchVideoThumbnailnailTaskValue(
       errorDescription: errorDescription,
@@ -94,10 +96,10 @@ class FetchVideoThumbnailnailTask
   final String videoPath;
   final int handle;
   final EventChannel eventChannel;
-  StreamSubscription<dynamic> _thumbnailStreamSubscription;
+  late StreamSubscription<dynamic> _thumbnailStreamSubscription;
   bool _isDisposed = false;
   FetchVideoThumbnailnailTask._internal(
-      this.videoPath, this.handle, onLatestThumbnailAvailable callback)
+      this.videoPath, this.handle, OnLatestThumbnailAvailable callback)
       : eventChannel = EventChannel(
             'github.com/peerwaya/gotok/video_trimmer/thumbnailStream/$handle'),
         super(const FetchVideoThumbnailnailTaskValue.uninitialized()) {
@@ -115,13 +117,14 @@ class FetchVideoThumbnailnailTask
       if (_isDisposed) {
         throw VideoTrimException(
           'Request Disposed.',
-          'start was called on a disposed thumbnail fetch task',
+          description: 'start was called on a disposed thumbnail fetch task',
         );
       }
       if (value.isRunning) {
         throw VideoTrimException(
           'A fetch request is already running.',
-          'start was called while a fetch request is already running.',
+          description:
+              'start was called while a fetch request is already running.',
         );
       }
       bool isRunning =
@@ -138,7 +141,7 @@ class FetchVideoThumbnailnailTask
       );
     } on PlatformException catch (e) {
       value = value.copyWith(isRunning: false);
-      throw VideoTrimException(e.code, e.message);
+      throw VideoTrimException(e.code, description: e.message);
     }
   }
 
@@ -147,13 +150,13 @@ class FetchVideoThumbnailnailTask
       if (_isDisposed) {
         throw VideoTrimException(
           'Request Disposed.',
-          'start was called on a disposed thumbnail fetch task',
+          description: 'start was called on a disposed thumbnail fetch task',
         );
       }
       if (!value.isRunning) {
         throw VideoTrimException(
           'A fetch request is not running.',
-          'stop was called while a fetch request is not running.',
+          description: 'stop was called while a fetch request is not running.',
         );
       }
       await VideoTrimmer._channel.invokeMethod('stopVideoThumbsRequest', {
@@ -164,7 +167,7 @@ class FetchVideoThumbnailnailTask
       );
     } on PlatformException catch (e) {
       value = value.copyWith(isRunning: true);
-      throw VideoTrimException(e.code, e.message);
+      throw VideoTrimException(e.code, description: e.message);
     }
   }
 
@@ -178,7 +181,7 @@ class FetchVideoThumbnailnailTask
       'removeVideoThumbsRequest',
       <String, dynamic>{'handle': handle},
     );
-    await _thumbnailStreamSubscription?.cancel();
+    await _thumbnailStreamSubscription.cancel();
     _isDisposed = true;
     super.dispose();
   }
@@ -198,11 +201,11 @@ class VideoTrimmer {
         "endMs": endMs
       });
       if (ret != 0) {
-        throw VideoTrimException("failed", "error code $ret");
+        throw VideoTrimException("failed", description: "error code $ret");
       }
       return outputFile;
     } on PlatformException catch (e) {
-      throw VideoTrimException(e.code, e.message);
+      throw VideoTrimException(e.code, description: e.message);
     }
   }
 
@@ -212,7 +215,7 @@ class VideoTrimmer {
         "inputFile": inputFile,
       });
     } on PlatformException catch (e) {
-      throw VideoTrimException(e.code, e.message);
+      throw VideoTrimException(e.code, description: e.message);
     }
   }
 
@@ -228,7 +231,7 @@ class VideoTrimmer {
       });
       return VideoThumbnail.fromMap(result);
     } on PlatformException catch (e) {
-      throw VideoTrimException(e.code, e.message);
+      throw VideoTrimException(e.code, description: e.message);
     }
   }
 
@@ -253,12 +256,12 @@ class VideoTrimmer {
       }
       return [];
     } on PlatformException catch (e) {
-      throw VideoTrimException(e.code, e.message);
+      throw VideoTrimException(e.code, description: e.message);
     }
   }
 
   static Future<FetchVideoThumbnailnailTask> createFetchVideoThumbnailnailTask(
-      String videoFile, onLatestThumbnailAvailable callback) async {
+      String videoFile, OnLatestThumbnailAvailable callback) async {
     final int handle = await _channel.invokeMethod('initVideoThumbsRequest', {
       "videoFile": videoFile,
     });
